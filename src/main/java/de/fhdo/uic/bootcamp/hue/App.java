@@ -1,8 +1,12 @@
 package de.fhdo.uic.bootcamp.hue;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.util.InputMismatchException;
 import java.util.Scanner;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -19,13 +23,19 @@ public class App {
 	// Im Folgenden finden sich Variablen, die für die Verbindung zur Hue Bridge benötigt werden
 	//
 	// Die IP Adresse der Bridge, hier eine fiktive IP eingetragen. Muss geändert werden.
-	final static String HUE_ADDRESS = "http://192.168.2.119/api/";
+	final static String HUE_ADDRESS = "http://10.0.102.26/api/";
 	// Die User ID muss initial angelegt werden. Ist der Nutzer einmal vorhanden, kann er von mehreren Personen genutzt werden.
 	// Neue Nutzer können durch das betätigen des "Buttons" auf der Bridge + ein POST Call auf die Bridge angelegt werden
 	// Eine Anleitung dazu findet sich auf https://developers.meethue.com/develop/get-started-2/
-	final static String USER = "YOUR USER ID";
+	final static String USER = "7UvAqtykWojX4fjAnmFPJttdmi8N1erMFBMX-wCT";
 	// Jede an die Bridge angeschlossene Leuchte verfügt über eine eigene lokale ID, diese kann auch über Menüpunkt 5 ausgelesen werden
-	final static String LIGHT_NUMBER = "7";
+	final static String LIGHT_NUMBER = "8";
+	
+	//Variablen für die Wetter API von openweathermap.org
+	final static String WEATHER_API = "http://api.openweathermap.org/data/2.5/weather";
+	final static String CITY = "Dortmund";
+	final static String APIKEY = "92647b8f3a3d7920948e20505514b882";
+	
 
 	final static OkHttpClient CLIENT = new OkHttpClient();
 	static boolean terminate = false;
@@ -43,10 +53,12 @@ public class App {
 		System.out.println("(2) Leuchte einschalten");
 		System.out.println("(3) Farbe verändern");
 		System.out.println("(4) Aus-Ein-Aus-Ein-Aus blinken");
-		System.out.println("(5) Liste aller anschlossenen Leuchten ausgeben");		
-		System.out.println("(6) Programm beenden");
+		System.out.println("(5) Liste aller anschlossenen Leuchten ausgeben");	
+		System.out.println("(6) Alarm anschalten");
+		System.out.println("(7) Wettermodus");
+		System.out.println("(8) Programm beenden");
 		while(!terminate) {
-			System.out.print("Neue Eingabe 1 bis 6:");
+			System.out.print("Neue Eingabe 1 bis 8:");
 			int input;
 			try {
 				input = scan.nextInt();		
@@ -99,11 +111,21 @@ public class App {
 					System.out.println("Alle Lichter werden abgerufen:\n"+allLights);
 					System.out.println("\nAntwort:\n"+app.getRequest(allLights));
 					break;
-				}
+				}	
 				case 6: {
+					var alert = HUE_ADDRESS+USER+"/lights/"+LIGHT_NUMBER+"/state";
+					System.out.println("Alarm für "+LIGHT_NUMBER+" wird ausgeführt:\n"+alert);
+					System.out.println("Erhaltene Antwort:\n"+app.alertHue(alert));
+					break;
+				}
+				case 7: {
+					System.out.println("Erhaltene Antwort:\n"+app.getTemperature());
+					break;
+				}
+				case 8: {
 					terminate = true;
 					break;
-				}		
+				}
 				default:
 					System.out.println("Leider ist etwas mit der Eingabe schief gelaufen. Zulässig sind nur Zahlen von 1 bis 5."
 							+ "\nIhre Eingabe war:"+input);
@@ -125,6 +147,7 @@ public class App {
 			return null;
 		}		
 	}
+	
 
 	public String changeState(String url, boolean on) {
 		MediaType mediaType = MediaType.parse("application/json");
@@ -146,6 +169,60 @@ public class App {
 		try {
 			Response response = CLIENT.newCall(request).execute();
 			return response.body().string();
+		} catch (IOException e) {
+			System.out.println("Leider ist bei der Verbindung ein Fehler aufgetreten... :/");
+			e.printStackTrace();
+			return null;
+		}		
+	}
+	
+	public String alertHue(String url) {
+		MediaType mediaType = MediaType.parse("application/json");
+		
+		// Hier wird der Body des REST Calls definiert
+		// Parameter siehe: http://www.burgestrand.se/hue-api/api/lights/
+		JSONObject jsonObject = new JSONObject();
+		try {
+		    jsonObject.put("alert", "lselect");
+		    jsonObject.put("hue", 54722);
+		} catch (JSONException e) {
+		    e.printStackTrace();
+		}
+
+		RequestBody body = RequestBody.create(mediaType, jsonObject.toString());
+		
+
+		Request request = new Request.Builder()
+				.url(url)
+				.put(body)
+				.addHeader("Content-Type", "application/json")
+				.build();
+
+		try {
+			Response response = CLIENT.newCall(request).execute();
+			return response.body().string();
+		} catch (IOException e) {
+			System.out.println("Leider ist bei der Verbindung ein Fehler aufgetreten... :/");
+			e.printStackTrace();
+			return null;
+		}		
+	}
+	
+	public String getTemperature() {
+		String url = WEATHER_API+"?q=" + CITY + "&appid=" + APIKEY + "&units=metric";
+
+		Request request = new Request.Builder()
+				.url(url)
+				.addHeader("Content-Type", "application/json")
+				.build();
+
+		try {
+			Response response = CLIENT.newCall(request).execute();
+			String jsonData = response.body().string();
+			JSONObject allWeatherInformation = new JSONObject(jsonData);
+			JSONObject mainWeatherParameters = (JSONObject) allWeatherInformation.get("main");
+			BigDecimal temp = (BigDecimal) mainWeatherParameters.get("temp");
+			return "Die aktuelle Temperatur für " + CITY + " beträgt " + temp.toString() + " Celcius";
 		} catch (IOException e) {
 			System.out.println("Leider ist bei der Verbindung ein Fehler aufgetreten... :/");
 			e.printStackTrace();
