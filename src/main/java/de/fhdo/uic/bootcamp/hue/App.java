@@ -29,7 +29,7 @@ public class App {
 	
 	// Initial user ID required to access the Hue Bridge. Please change it!
 	// Have a look here to change it: https://developers.meethue.com/develop/get-started-2/
-	static String USER = "mL-H7OIf7wEncVofkUCsCng2jNJaJR404DSM4BUu";
+	static String USER = "Epp9N5fXXWBRqCcd8pKPC9M-oGfeEM8hqTJxoVot";
 	// The number of the light to control. Change it to the number of your light.
 	static String LIGHT_NUMBER = "7";
 	
@@ -47,35 +47,32 @@ public class App {
 
 		// Here, the java arguments are read in to configure the access to the Hue bridge and the lights.
 		// Possible values:
-		// 1. argument (args[0]): IP address of the Hue bridge
-		// 2. argument (args[1]): Username for the Hue Bridge
-		// 3. argument (args[2]): Light number (optional)
+		// 1. argument (args[0]): Light number (optional)
+		// 2. argument (args[1]): IP address of the Hue bridge
+		// 3. argument (args[2]): Username for the Hue Bridge
 		if(args != null && args.length > 0) {
 			System.out.println("Lese Argumente ein...");
-			if(args.length >= 2) {
-				//First argument is the IP address. Additionally, we check the IP address format.
-				String ipaddress = args[0];
+			//First argument is the light number...
+			System.out.println("Lese Nummer der Lampe ein...");
+			LIGHT_NUMBER = args[0];
+			if(!LIGHT_NUMBER.matches("[0-9]+")) {
+				System.out.println("Schade, das erste Argument ist keine Zahl. Starte also Lampe " + LIGHT_NUMBER + ".");
+			}
+			else {
+				System.out.println("OK, starte Lampe" + LIGHT_NUMBER + ".");
+			}
+			if(args.length > 1) {
+				//Second argument is the IP address. Additionally, we check the IP address format.
+				String ipaddress = args[1];
 				if(!ipaddress.matches("[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}")){
-					System.out.println("Schade, das erste Argument ist keine IP-Adresse. Beende Programm.");
-					System.exit(1);
+					System.out.println("Schade, das zweite Argument ist keine IP-Adresse. Nehme Standardadresse.");
 				}
 				else {
 					HUE_ADDRESS = "http://"+ipaddress+"/api/";
 				}
-				USER = args[1];
-				if(args.length >= 3) {
-					System.out.println("Lese Nummer der Lampe ein...");
-					LIGHT_NUMBER = args[2];
-					if(!LIGHT_NUMBER.matches("[0-9]+")) {
-						System.out.println("Schade, das dritte Argument ist keine Zahl. Starte also Lampe " + LIGHT_NUMBER + ".");
-					}
-					else {
-						System.out.println("OK, starte Lampe" + LIGHT_NUMBER + ".");
-					}
-				}
-				else {
-					System.out.println("Alles startbereit. Die Lampe kenne ich nicht, also gehe ich von Lampe " + LIGHT_NUMBER + " aus.");
-				}
+			}
+			if(args.length > 2) {
+				USER = args[2];
 			}
 		}
 		else {
@@ -85,15 +82,32 @@ public class App {
 		// Creating objects needed for the interaction with the user
 		var scan = new Scanner(System.in);
 		//Asking for a specific code to start the application
-		System.out.println("Bevor ich dir zeige, was ich so kann, brauche ich den 4-stelligen Code von dir:");
+		System.out.println("Bevor ich dir zeige, was ich so kann, brauche ich den 6-stelligen Code von dir (ohne Punkte). Wenn du den nicht weißt, starte das Wiederherstellungsprogramm für den Chatbot des Supercomputers:");
 		while(!terminate) {
 			int input;
 			try {
-				input = scan.nextInt();		
+				String next = scan.next();
+				if(!next.matches("[0-9]+")) {
+					switch (next) {
+					case "exit": {
+						System.out.println("Programm wird beendet.");
+						terminate = true;
+						break;
+					}
+					case "test": {
+						System.out.println("Teste die Lampe...");
+						app.sendColorCode(true);
+						terminate = true;
+						break;
+					}
+				}
+				}
+				else {
+					input = Integer.parseInt(next);		
 				switch(input) {
-				case 2874: {
+				case 241974: {
 					System.out.println("Das war korrekt! Jetzt geht's los...");
-					app.sendColorCode();
+					app.sendColorCode(false);
 					terminate = true;
 					break;
 				}
@@ -101,29 +115,34 @@ public class App {
 					System.out.println("Leider ist der eingegebene Code falsch. Bitte versuche es erneut.");
 					break;
 				}
+				}
 			}
 			} catch (InputMismatchException ime) {
 				System.out.println("Fehlerhafte Eingabe. Programm wird beendet.");
 			}
 		}
+		System.out.println("Wenn du mich nochmal sehen willst, starte mich einfach neu. Bis bald!");
+		Thread.sleep(5000);
 		scan.close();
 	}
 
 	/**
 	 * Method to send a color code to the Philips Hue light
+	 * @param test If true, a test color code is sent
 	 * @throws InterruptedException
 	 */
 	
-	public void sendColorCode() throws InterruptedException {
+	public void sendColorCode(boolean test) throws InterruptedException {
 		var lightState = HUE_ADDRESS+USER+"/lights/"+LIGHT_NUMBER+"/state"; // Die Adresse
+		var colorCode = test ? getTestCode() : getColorCode();
 		for(int i = 0; i <= 5; i++) {
-			for (Integer color : getColorCode()) {
+			for (Integer color : colorCode) {
 				List<Integer> rgb = colorCodeToRGB(color);
 				int sat = rgb.size() > 3 ? rgb.get(3) : 254;
 				int bri = rgb.size() > 4 ? rgb.get(4) : 254;
 
 				changeColor(lightState, getRGBtoPhilipsHue(rgb.get(0), rgb.get(1), rgb.get(2)), sat, bri);
-				Thread.sleep(1500);
+				Thread.sleep(3500);
 			}
 			changeState(lightState, false);
 			Thread.sleep(5000);		
@@ -135,7 +154,16 @@ public class App {
 	 * @return List of numbers representing the color code
 	 */
 
-	public List<Integer> getColorCode() {
+	 public List<Integer> getColorCode() {
+		return Arrays.asList(4, 8, 0); //This shows a specific color code. Feel free to change it.
+	}
+
+	/**
+	 * Method to get a test color code being sent to the Philips Hue light. It 
+	 * @return List of numbers representing the color code
+	 */
+
+	public List<Integer> getTestCode() {
 		return Arrays.asList(0, 1, 2, 3, 4, 5, 6, 7, 8, 9); //This shows all colors available in the color code. Feel free to change it.
 	}
 
@@ -222,9 +250,9 @@ public class App {
 	}
 	
 	/**
-	 * Method to 
-	 * @param url
-	 * @return
+	 * Method to alert the Philips Hue light.
+	 * @param url The URL of the light
+	 * @return The response of the REST call.
 	 */
 
 	public String alertHue(String url) {
@@ -259,6 +287,11 @@ public class App {
 		}		
 	}
 	
+	/**
+	 * Method to get the current temperature of a city (set by the variable CITY) based on the OpenWeatherMap API.
+	 * @return The current temperature of the city.
+	 */
+
 	public String getTemperature() {
 		String url = WEATHER_API+"?q=" + CITY + "&appid=" + APIKEY + "&units=metric";
 
@@ -281,6 +314,14 @@ public class App {
 		}		
 	}
 
+	/**
+	 * Method to change the color of the Philips Hue light by using XY coordinates in the color space of the light.
+	 * @param url The URL of the light
+	 * @param x The x-coordinate in the color space
+	 * @param y The y-coordinate in the color space
+	 * @param satBri Optional settings for the saturation and brightness
+	 * @return The response of the REST call.
+	 */
 	public String changeColorXY(String url, float x, float y, Integer... satBri) {
 		MediaType mediaType = MediaType.parse("application/json");
 		int sat = satBri.length > 0 ? satBri[0]: 254;
@@ -303,6 +344,13 @@ public class App {
 		}	
 	}
 
+	/**
+	 * Method to change the color of the Philips Hue light based on the Philips Hue Hue value.
+	 * @param url The URL of the light
+	 * @param farbwert The Hue value, which is a value between 0 and 65353
+	 * @param satBri Optional settings for the saturation and brightness
+	 * @return The response of the REST call.
+	 */
 	public String changeColor(String url, int farbwert, Integer... satBri) {
 		MediaType mediaType = MediaType.parse("application/json");
 		int sat = satBri.length > 0 ? satBri[0]: 254;
@@ -326,11 +374,11 @@ public class App {
 	}
 
 	/**
-	 * Method to convert any RGB color to Philips Hue Color
+	 * Method to convert any RGB color to Philips Hue Color in the Philips Hue color space
 	 * @param red The red value between 0 and 255
 	 * @param green The green value between 0 and 255
 	 * @param blue The blue value between 0 and 255
-	 * @return 
+	 * @return The Philips Hue value between 0 and 65353
 	 */
 	public static int getRGBtoPhilipsHue(float red, float green, float blue) {
 		float min = red > green ? green : red;
@@ -367,6 +415,13 @@ public class App {
 		return (int) huePhilips;
 }
 
+/**
+ * Method to convert any RGB color to XY coordinates in the color space of the Philips Hue light.
+ * @param red The red value between 0 and 255
+ * @param green The green value between 0 and 255
+ * @param blue 	The blue value between 0 and 255
+ * @return The XY coordinates as a list
+ */
 public static List<Float> getRGBtoXY(float red, float green, float blue) {
     // For the hue bulb the corners of the triangle are:
     // -Red: 0.675, 0.322
